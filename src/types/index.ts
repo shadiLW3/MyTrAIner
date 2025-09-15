@@ -33,6 +33,7 @@ export interface UserProfile {
 export type Equipment = 'barbell' | 'dumbbell' | 'cable' | 'bodyweight' | 'machine' | 'kettlebell' | 'bands';
 
 export type ExerciseCategory = 'chest' | 'back' | 'legs' | 'shoulders' | 'arms' | 'core' | 'glutes';
+export type ExerciseType = 'weight_reps' | 'time' | 'distance_time' | 'reps_only';
 
 export type MuscleGroup = 
   // Upper body
@@ -51,13 +52,16 @@ export interface Exercise {
   equipment: Equipment;
   primaryMuscles: MuscleGroup[];
   secondaryMuscles?: MuscleGroup[];
+  trackingType?: ExerciseType; 
 }
 
 export interface Set {
-  reps: number;
-  weight: number;
+  reps?: number;
+  weight?: number;
+  duration?: number;  // Add this if missing
+  distance?: number;
   completed: boolean;
-  rpe?: number; // Rate of Perceived Exertion (1-10)
+  rpe?: number;
 }
 
 export interface WorkoutExercise {

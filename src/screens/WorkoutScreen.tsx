@@ -1,22 +1,16 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, SafeAreaView } from 'react-native';
-import { Exercise, WorkoutExercise, Set } from '../types';
+import { Exercise, WorkoutExercise, Set } from '../types/index';
+import ExerciseSelector from '../components/ExerciseSelector';
+import TimeInput from '../components/TimeInput';
 
 export default function WorkoutScreen() {
-  const [workoutExercises, setWorkoutExercises] = useState<WorkoutExercise[]>([
-    {
-      exercise: { id: '1', name: 'Bench Press', category: 'chest', equipment: 'barbell' },
-      sets: [
-        { reps: 0, weight: 0, completed: false },
-        { reps: 0, weight: 0, completed: false },
-        { reps: 0, weight: 0, completed: false },
-      ]
-    }
-  ]);
+  const [workoutExercises, setWorkoutExercises] = useState<WorkoutExercise[]>([]);
+  const [showExerciseSelector, setShowExerciseSelector] = useState(false);
 
-  const updateSet = (exerciseIndex: number, setIndex: number, field: 'reps' | 'weight', value: string) => {
+  const updateSet = (exerciseIndex: number, setIndex: number, field: 'reps' | 'weight' | 'duration', value: string | number) => {
     const newExercises = [...workoutExercises];
-    const numValue = parseInt(value) || 0;
+    const numValue = typeof value === 'string' ? parseInt(value) || 0 : value;
     newExercises[exerciseIndex].sets[setIndex][field] = numValue;
     setWorkoutExercises(newExercises);
   };
@@ -33,9 +27,24 @@ export default function WorkoutScreen() {
     newExercises[exerciseIndex].sets.push({
       reps: lastSet?.reps || 0,
       weight: lastSet?.weight || 0,
+      duration: lastSet?.duration || 0,
       completed: false
     });
     setWorkoutExercises(newExercises);
+  };
+
+  const deleteSet = (exerciseIndex: number, setIndex: number) => {
+    const newExercises = [...workoutExercises];
+    newExercises[exerciseIndex].sets.splice(setIndex, 1);
+    setWorkoutExercises(newExercises);
+  };
+
+  const addExercise = (exercise: Exercise) => {
+    const newExercise: WorkoutExercise = {
+      exercise,
+      sets: [] // Start with no sets
+    };
+    setWorkoutExercises([...workoutExercises, newExercise]);
   };
 
   return (
@@ -55,8 +64,18 @@ export default function WorkoutScreen() {
             <View style={styles.setHeader}>
               <Text style={styles.setHeaderText}>SET</Text>
               <Text style={styles.setHeaderText}>PREVIOUS</Text>
-              <Text style={styles.setHeaderText}>LBS</Text>
-              <Text style={styles.setHeaderText}>REPS</Text>
+              {exercise.exercise.trackingType === 'weight_reps' && (
+                <>
+                  <Text style={styles.setHeaderText}>LBS</Text>
+                  <Text style={styles.setHeaderText}>REPS</Text>
+                </>
+              )}
+              {exercise.exercise.trackingType === 'time' && (
+                <Text style={[styles.setHeaderText, {width: 100}]}>TIME</Text>
+              )}
+              {exercise.exercise.trackingType === 'reps_only' && (
+                <Text style={styles.setHeaderText}>REPS</Text>
+              )}
               <Text style={styles.setHeaderText}>✓</Text>
             </View>
 
@@ -65,27 +84,51 @@ export default function WorkoutScreen() {
                 <Text style={styles.setNumber}>{setIndex + 1}</Text>
                 <Text style={styles.previousText}>-</Text>
                 
-                <TextInput
-                  style={styles.input}
-                  value={set.weight ? set.weight.toString() : ''}
-                  onChangeText={(value) => updateSet(exerciseIndex, setIndex, 'weight', value)}
-                  keyboardType="numeric"
-                  placeholder="0"
-                />
+                {exercise.exercise.trackingType === 'weight_reps' && (
+                  <>
+                    <TextInput
+                      style={styles.input}
+                      value={set.weight ? set.weight.toString() : ''}
+                      onChangeText={(value) => updateSet(exerciseIndex, setIndex, 'weight', value)}
+                      keyboardType="numeric"
+                      placeholder="0"
+                    />
+                    <TextInput
+                      style={styles.input}
+                      value={set.reps ? set.reps.toString() : ''}
+                      onChangeText={(value) => updateSet(exerciseIndex, setIndex, 'reps', value)}
+                      keyboardType="numeric"
+                      placeholder="0"
+                    />
+                  </>
+                )}
                 
-                <TextInput
-                  style={styles.input}
-                  value={set.reps ? set.reps.toString() : ''}
-                  onChangeText={(value) => updateSet(exerciseIndex, setIndex, 'reps', value)}
-                  keyboardType="numeric"
-                  placeholder="0"
-                />
+                {exercise.exercise.trackingType === 'time' && (
+                  <TimeInput
+                    value={set.duration || 0}
+                    onChange={(seconds) => updateSet(exerciseIndex, setIndex, 'duration', seconds)}
+                  />
+                )}
+                
+                {exercise.exercise.trackingType === 'reps_only' && (
+                  <TextInput
+                    style={styles.input}
+                    value={set.reps ? set.reps.toString() : ''}
+                    onChangeText={(value) => updateSet(exerciseIndex, setIndex, 'reps', value)}
+                    keyboardType="numeric"
+                    placeholder="0"
+                  />
+                )}
                 
                 <TouchableOpacity
                   style={[styles.checkBox, set.completed && styles.checkBoxCompleted]}
                   onPress={() => toggleSetComplete(exerciseIndex, setIndex)}
                 >
                   {set.completed && <Text style={styles.checkMark}>✓</Text>}
+                </TouchableOpacity>
+                
+                <TouchableOpacity onPress={() => deleteSet(exerciseIndex, setIndex)}>
+                  <Text style={styles.deleteText}>×</Text>
                 </TouchableOpacity>
               </View>
             ))}
@@ -99,10 +142,16 @@ export default function WorkoutScreen() {
           </View>
         ))}
 
-        <TouchableOpacity style={styles.addExerciseButton}>
+        <TouchableOpacity style={styles.addExerciseButton} onPress={() => setShowExerciseSelector(true)}>
           <Text style={styles.addExerciseText}>+ Add Exercise</Text>
         </TouchableOpacity>
       </ScrollView>
+      
+      <ExerciseSelector
+        visible={showExerciseSelector}
+        onClose={() => setShowExerciseSelector(false)}
+        onSelectExercise={addExercise}
+      />
     </SafeAreaView>
   );
 }
@@ -153,6 +202,7 @@ const styles = StyleSheet.create({
   setHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 8,
     paddingHorizontal: 4,
   },
@@ -205,6 +255,12 @@ const styles = StyleSheet.create({
   checkMark: {
     color: '#FFF',
     fontWeight: 'bold',
+  },
+  deleteText: {
+    color: '#FF4444',
+    fontSize: 24,
+    fontWeight: '600',
+    marginLeft: 10,
   },
   addSetButton: {
     paddingVertical: 8,
