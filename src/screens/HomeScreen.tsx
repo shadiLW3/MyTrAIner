@@ -1,17 +1,59 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import React, { useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, RefreshControl, ActivityIndicator } from 'react-native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useWorkouts } from '../hooks/useWorkouts';
+import { formatWorkoutDuration, formatVolume, getWorkoutSummary } from '../services/workoutService';
 
 export default function HomeScreen() {
   const navigation = useNavigation();
+  
+  // For now, use mock user ID - we'll add proper auth later
+  const mockUserId = "user123";
+  const { workouts, recentWorkouts, loading, error, refreshWorkouts, stats } = useWorkouts(mockUserId);
+
+  // Refresh data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      refreshWorkouts();
+    }, [])
+  );
 
   const navigateToWorkout = () => {
     navigation.navigate('Workout' as never);
   };
 
+  const getTodaysWorkout = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return workouts.find(workout => {
+      const workoutDate = new Date(workout.date);
+      workoutDate.setHours(0, 0, 0, 0);
+      return workoutDate.getTime() === today.getTime();
+    });
+  };
+
+  const todaysWorkout = getTodaysWorkout();
+
+  if (loading && workouts.length === 0) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#1E40AF" />
+          <Text style={styles.loadingText}>Loading your workouts...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.content}>
+      <ScrollView 
+        style={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={loading} onRefresh={refreshWorkouts} />
+        }
+      >
         {/* Quick Start Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Quick Start</Text>
@@ -23,7 +65,7 @@ export default function HomeScreen() {
         {/* Today's Workout Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Today's Workout</Text>
+            <Text style={styles.sectionTitle}>Today</Text>
             <Text style={styles.dateText}>{new Date().toLocaleDateString('en-US', { 
               weekday: 'long', 
               month: 'short', 
@@ -31,57 +73,106 @@ export default function HomeScreen() {
             })}</Text>
           </View>
           
-          <View style={styles.todayWorkoutCard}>
-            <Text style={styles.workoutTitle}>Push Day 💪</Text>
-            <Text style={styles.workoutSubtitle}>Chest, Shoulders, Triceps</Text>
-            <View style={styles.workoutStats}>
-              <Text style={styles.statText}>45 min • 6 exercises</Text>
+          {todaysWorkout ? (
+            <View style={styles.todayWorkoutCard}>
+              <Text style={styles.workoutTitle}>{todaysWorkout.name} ✅</Text>
+              <Text style={styles.workoutSubtitle}>
+                {getWorkoutSummary(todaysWorkout)}
+              </Text>
+              <View style={styles.workoutStats}>
+                <Text style={styles.statText}>
+                  {formatWorkoutDuration(todaysWorkout.duration || 0)} • {todaysWorkout.exercises.length} exercises
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.completedWorkoutButton}>
+                <Text style={styles.completedWorkoutText}>Completed Today!</Text>
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity style={styles.startWorkoutButton} onPress={navigateToWorkout}>
-              <Text style={styles.startWorkoutText}>Start Workout</Text>
-            </TouchableOpacity>
-          </View>
+          ) : (
+            <View style={styles.todayWorkoutCard}>
+              <Text style={styles.workoutTitle}>Ready to Train? 💪</Text>
+              <Text style={styles.workoutSubtitle}>Start your workout for today</Text>
+              <View style={styles.workoutStats}>
+                <Text style={styles.statText}>No workout completed today</Text>
+              </View>
+              <TouchableOpacity style={styles.startWorkoutButton} onPress={navigateToWorkout}>
+                <Text style={styles.startWorkoutText}>Start Workout</Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
 
-        {/* Programs Section */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Programs</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAllText}>See all</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <View style={styles.programCard}>
-            <Text style={styles.programTitle}>5-Day Split</Text>
-            <Text style={styles.programSubtitle}>Intermediate • 5 days/week</Text>
-            <View style={styles.progressBar}>
-              <View style={[styles.progressFill, { width: '60%' }]} />
+        {/* Stats Section */}
+        {stats.totalWorkouts > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Your Stats</Text>
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <Text style={styles.statNumber}>{stats.totalWorkouts}</Text>
+                <Text style={styles.statLabel}>Total Workouts</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statNumber}>{formatVolume(stats.totalVolume)}</Text>
+                <Text style={styles.statLabel}>Total Volume</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statNumber}>{stats.currentStreak}</Text>
+                <Text style={styles.statLabel}>Day Streak</Text>
+              </View>
             </View>
-            <Text style={styles.progressText}>Week 3 of 8</Text>
           </View>
-        </View>
+        )}
 
         {/* Recent Workouts */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Workouts</Text>
-          
-          <View style={styles.recentWorkoutItem}>
-            <View style={styles.recentWorkoutInfo}>
-              <Text style={styles.recentWorkoutTitle}>Pull Day</Text>
-              <Text style={styles.recentWorkoutDate}>Yesterday • 42 min</Text>
+        {recentWorkouts.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Recent Workouts</Text>
+              <TouchableOpacity>
+                <Text style={styles.seeAllText}>See all</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.recentWorkoutExercises}>6 exercises</Text>
+            
+            {recentWorkouts.slice(0, 5).map((workout, index) => (
+              <View key={workout.id} style={styles.recentWorkoutItem}>
+                <View style={styles.recentWorkoutInfo}>
+                  <Text style={styles.recentWorkoutTitle}>{workout.name}</Text>
+                  <Text style={styles.recentWorkoutDate}>
+                    {workout.date.toLocaleDateString()} • {formatWorkoutDuration(workout.duration || 0)}
+                  </Text>
+                </View>
+                <Text style={styles.recentWorkoutExercises}>
+                  {workout.exercises.length} exercises
+                </Text>
+              </View>
+            ))}
           </View>
-          
-          <View style={styles.recentWorkoutItem}>
-            <View style={styles.recentWorkoutInfo}>
-              <Text style={styles.recentWorkoutTitle}>Leg Day</Text>
-              <Text style={styles.recentWorkoutDate}>2 days ago • 51 min</Text>
+        )}
+
+        {/* First Time User State */}
+        {stats.totalWorkouts === 0 && !loading && (
+          <View style={styles.section}>
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyIcon}>🏋️‍♂️</Text>
+              <Text style={styles.emptyTitle}>Welcome to MyTrainer!</Text>
+              <Text style={styles.emptySubtitle}>
+                Start your first workout to begin tracking your fitness journey
+              </Text>
+              <TouchableOpacity style={styles.startFirstWorkoutButton} onPress={navigateToWorkout}>
+                <Text style={styles.startFirstWorkoutText}>Start First Workout</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.recentWorkoutExercises}>7 exercises</Text>
           </View>
-        </View>
+        )}
+
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>⚠️ {error}</Text>
+            <TouchableOpacity onPress={refreshWorkouts} style={styles.retryButton}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -95,6 +186,17 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#6B7280',
   },
   section: {
     marginBottom: 24,
@@ -168,38 +270,40 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  programCard: {
+  completedWorkoutButton: {
+    backgroundColor: '#10B981',
+    borderRadius: 8,
+    padding: 12,
+    alignItems: 'center',
+  },
+  completedWorkoutText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  statCard: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
-  programTitle: {
-    fontSize: 16,
+  statNumber: {
+    fontSize: 20,
     fontWeight: '600',
     color: '#1F2937',
     marginBottom: 4,
   },
-  programSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 12,
-  },
-  progressBar: {
-    height: 4,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 2,
-    marginBottom: 8,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 2,
-  },
-  progressText: {
+  statLabel: {
     fontSize: 12,
     color: '#6B7280',
+    textAlign: 'center',
   },
   recentWorkoutItem: {
     backgroundColor: '#FFFFFF',
@@ -228,5 +332,62 @@ const styles = StyleSheet.create({
   recentWorkoutExercises: {
     fontSize: 12,
     color: '#6B7280',
+  },
+  emptyState: {
+    alignItems: 'center',
+    padding: 32,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  startFirstWorkoutButton: {
+    backgroundColor: '#1E40AF',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  startFirstWorkoutText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  errorContainer: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: {
+    color: '#DC2626',
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  retryButton: {
+    alignSelf: 'flex-start',
+  },
+  retryText: {
+    color: '#1E40AF',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

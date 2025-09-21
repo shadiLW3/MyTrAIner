@@ -78,17 +78,44 @@ export default function WorkoutScreen() {
   };
 
   const addExercise = (exercise: Exercise) => {
+    // Set default trackingType if not provided
+    const exerciseWithTracking = {
+      ...exercise,
+      trackingType: exercise.trackingType || getDefaultTrackingType(exercise)
+    };
+
     const newExercise: WorkoutExercise = {
-      exercise,
+      exercise: exerciseWithTracking,
       sets: [{
         reps: 0,
         weight: 0,
-        duration: 0,
+        duration: exerciseWithTracking.trackingType === 'time' ? 30 : 0,
         completed: false
       }],
       restTime: 90 // Default rest time
     };
     setWorkoutExercises([...workoutExercises, newExercise]);
+  };
+
+  // Helper function to determine default tracking type
+  const getDefaultTrackingType = (exercise: Exercise): 'weight_reps' | 'time' | 'reps_only' => {
+    // Time-based exercises
+    if (exercise.name.toLowerCase().includes('plank') || 
+        exercise.name.toLowerCase().includes('hold') ||
+        exercise.name.toLowerCase().includes('wall sit')) {
+      return 'time';
+    }
+    
+    // Bodyweight exercises that are typically reps-only
+    if (exercise.equipment === 'bodyweight' && 
+        (exercise.name.toLowerCase().includes('push-up') ||
+         exercise.name.toLowerCase().includes('pull-up') ||
+         exercise.name.toLowerCase().includes('chin-up'))) {
+      return 'reps_only';
+    }
+    
+    // Default to weight_reps for most exercises
+    return 'weight_reps';
   };
 
   const deleteExercise = (exerciseIndex: number) => {
@@ -110,25 +137,86 @@ export default function WorkoutScreen() {
     );
   };
 
-  const finishWorkout = () => {
+  const finishWorkout = async () => {
+    if (workoutExercises.length === 0) {
+      Alert.alert("No Exercises", "Add some exercises before finishing your workout.");
+      return;
+    }
+
     Alert.alert(
       "Finish Workout",
-      "Are you sure you want to finish this workout?",
+      `Save this workout?\n\n• Duration: ${formatDuration(workoutDuration)}\n• Volume: ${totalVolume.toLocaleString()} lbs\n• Sets: ${completedSets}`,
       [
         { text: "Continue", style: "cancel" },
         { 
           text: "Finish", 
-          onPress: () => {
-            // TODO: Save workout to Firebase
-            console.log("Workout finished!", { 
-              duration: workoutDuration, 
-              volume: totalVolume, 
-              sets: completedSets 
-            });
+          onPress: async () => {
+            try {
+              // Import the service at the top of the file
+              const { WorkoutService } = await import('../services/workoutService');
+              
+              const endTime = new Date();
+              const workoutName = generateWorkoutName(workoutExercises);
+              
+              // For now, use a mock user ID - we'll add auth later
+              const mockUserId = "user123";
+              
+              const workoutData = WorkoutService.createWorkoutFromSession(
+                mockUserId,
+                workoutName,
+                workoutExercises,
+                workoutStartTime,
+                endTime
+              );
+              
+              const workoutId = await WorkoutService.saveWorkout(workoutData);
+              
+              Alert.alert(
+                "Workout Saved! 💪",
+                "Great job! Your workout has been saved.",
+                [
+                  {
+                    text: "Done",
+                    onPress: () => {
+                      // Reset workout state
+                      setWorkoutExercises([]);
+                      setWorkoutStartTime(new Date());
+                      setShowRestTimer(false);
+                    }
+                  }
+                ]
+              );
+            } catch (error) {
+              console.error("Error saving workout:", error);
+              Alert.alert(
+                "Save Failed",
+                "Couldn't save your workout. Please try again.",
+                [{ text: "OK" }]
+              );
+            }
           }
         }
       ]
     );
+  };
+
+  const generateWorkoutName = (exercises: WorkoutExercise[]): string => {
+    if (exercises.length === 0) return "Quick Workout";
+    
+    const categories = exercises.map(e => e.exercise.category);
+    const uniqueCategories = [...new Set(categories)];
+    
+    if (uniqueCategories.includes('chest') && uniqueCategories.includes('shoulders')) {
+      return "Push Workout";
+    } else if (uniqueCategories.includes('back')) {
+      return "Pull Workout";  
+    } else if (uniqueCategories.includes('legs')) {
+      return "Leg Workout";
+    } else if (uniqueCategories.length === 1) {
+      return `${uniqueCategories[0].charAt(0).toUpperCase() + uniqueCategories[0].slice(1)} Workout`;
+    } else {
+      return "Full Body Workout";
+    }
   };
 
   const formatDuration = (seconds: number) => {
