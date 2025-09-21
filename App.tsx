@@ -55,7 +55,9 @@ export default function App() {
         <Tab.Screen 
           name="Workout" 
           component={WorkoutScreen}
-          options={{ title: 'Workout' }}
+          options={{ title: 'Workout',
+            headerShadowVisible: false
+           }}
         />
         <Tab.Screen 
           name="Profile" 
