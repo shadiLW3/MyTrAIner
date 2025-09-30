@@ -23,7 +23,10 @@
     "react-native-screens": "~4.11.1",
     "expo-notifications": "~0.31.4",
     "expo-haptics": "~14.1.4",
-    "@react-native-picker/picker": "2.11.1"
+    "@react-native-picker/picker": "2.11.1",
+    "expo-file-system": "~17.0.1",
+    "expo-sharing": "~13.0.0", 
+    "expo-document-picker": "~14.0.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

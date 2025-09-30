@@ -1,9 +1,20 @@
-// User and Profile Types
+// src/types/index.ts
+
+// === USER & AUTH TYPES ===
 export interface User {
   id: string;
   email: string;
+  displayName: string;
   createdAt: Date;
   onboardingComplete: boolean;
+  preferences: {
+    units: 'imperial' | 'metric';
+    restTimerEnabled: boolean;
+    defaultRestTime: number;
+    autoStartTimer: boolean;
+    soundEnabled: boolean;
+    vibrationEnabled: boolean;
+  };
 }
 
 export interface UserProfile {
@@ -17,7 +28,7 @@ export interface UserProfile {
   // Training info
   experience: 'beginner' | 'intermediate' | 'advanced';
   mode: 'lifter' | 'runner' | 'hybrid';
-  goals: string; // Free text initially
+  goals: string[];
   equipment: Equipment[];
   
   // Availability
@@ -27,11 +38,12 @@ export interface UserProfile {
   
   // Preferences
   intensityPreference: 'relaxed' | 'moderate' | 'aggressive';
+  
+  updatedAt?: Date;
 }
 
-// Exercise and Workout Types
+// === EXERCISE TYPES ===
 export type Equipment = 'barbell' | 'dumbbell' | 'cable' | 'bodyweight' | 'machine' | 'kettlebell' | 'bands';
-
 export type ExerciseCategory = 'chest' | 'back' | 'legs' | 'shoulders' | 'arms' | 'core' | 'glutes';
 export type ExerciseType = 'weight_reps' | 'time' | 'distance_time' | 'reps_only';
 
@@ -52,13 +64,13 @@ export interface Exercise {
   equipment: Equipment;
   primaryMuscles: MuscleGroup[];
   secondaryMuscles?: MuscleGroup[];
-  trackingType?: ExerciseType; 
+  trackingType?: ExerciseType;
 }
 
 export interface Set {
   reps?: number;
   weight?: number;
-  duration?: number;  // Add this if missing
+  duration?: number;
   distance?: number;
   completed: boolean;
   rpe?: number;
@@ -90,61 +102,192 @@ export interface Workout {
   notes?: string;
 }
 
-// Program and Planning Types
-export interface Program {
+// === TEMPLATE & PROGRAM TYPES ===
+export interface WorkoutTemplate {
   id: string;
   userId: string;
   name: string;
-  createdAt: Date;
-  weeks: Week[];
-  aiGenerated: boolean;
-}
-
-export interface Week {
-  weekNumber: number;
-  startDate: Date;
-  workouts: PlannedWorkout[];
-}
-
-export interface PlannedWorkout {
-  dayOfWeek: number; // 0-6 (Sun-Sat)
-  name: string;
-  exercises: PlannedExercise[];
-  targetDuration: number;
-  rationale?: string; // AI explanation
-}
-
-export interface PlannedExercise {
-  exercise: Exercise;
-  sets: number;
-  reps: string; // Can be range like "8-12"
-  intensity?: string; // Like "70% 1RM" or "RPE 7"
-  restTime?: number;
-}
-
-// AI Adaptation Types
-export interface AdaptationEvent {
-  userId: string;
-  timestamp: Date;
-  workoutId: string;
-  changes: {
-    what: string;
-    from: any;
-    to: any;
-    reason: string;
+  description: string;
+  exercises: {
+    exerciseId: string;
+    exerciseName: string;
+    sets: number;
+    repsRange: string; // e.g., "8-12"
+    notes?: string;
+    restTime?: number;
   }[];
+  tags: string[];
+  isPublic: boolean;
+  createdAt: Date;
+  lastUsed: Date | null;
+  useCount: number;
 }
 
-export interface TrainingLog {
-  userId: string;
-  date: Date;
-  workoutId: string;
-  completion: 'done' | 'skipped' | 'partial';
-  difficulty: 'easy' | 'just_right' | 'hard';
-  soreness: {
-    upper: number;
-    lower: number;
-    systemic: number;
-  };
+export interface ProgramDay {
+  weekNumber: number;
+  dayNumber: number;
+  name: string;
+  exercises: {
+    exerciseId: string;
+    exerciseName: string;
+    sets: number;
+    repsRange: string;
+    intensityNote?: string; // e.g., "RPE 8" or "70% 1RM"
+    restTime?: number;
+  }[];
   notes?: string;
+}
+
+export interface WorkoutProgram {
+  id: string;
+  userId: string;
+  name: string;
+  description: string;
+  durationWeeks: number;
+  daysPerWeek: number;
+  goal: 'strength' | 'muscle' | 'endurance' | 'general';
+  days: ProgramDay[];
+  
+  // Progress tracking
+  isActive: boolean;
+  startDate: Date | null;
+  currentWeek: number;
+  currentDay: number;
+  completedWorkouts: number;
+  totalWorkouts: number;
+  
+  createdAt: Date;
+  completedAt?: Date;
+}
+
+// === PROGRESSION & HISTORY TYPES ===
+export interface ExerciseHistory {
+  id: string;
+  userId: string;
+  exerciseId: string;
+  exerciseName: string;
+  workoutId: string;
+  date: Date;
+  sets: Set[];
+  
+  // Calculated stats
+  maxWeight: number;
+  totalVolume: number;
+  totalReps: number;
+  avgReps: number;
+  
+  notes: string | null;
+}
+
+export interface PersonalRecord {
+  id: string;
+  userId: string;
+  exerciseId: string;
+  exerciseName: string;
+  
+  // Different PR types
+  oneRepMax?: number;
+  oneRepMaxDate?: Date;
+  oneRepMaxActual?: Set; // Actual set that achieved this
+  
+  maxWeight?: number;
+  maxWeightDate?: Date;
+  
+  maxReps?: number;
+  maxRepsDate?: Date;
+  maxRepsWeight?: number;
+  
+  maxVolumeSet?: number; // Single set with highest volume
+  maxVolumeSetDate?: Date;
+  maxVolumeSetDetails?: Set;
+  
+  lastUpdated: Date;
+}
+
+export interface ProgressionStats {
+  exerciseId: string;
+  periodDays: number;
+  startDate: Date;
+  endDate: Date;
+  workoutCount: number;
+  
+  // Percentage improvements
+  volumeIncrease: number;
+  strengthIncrease: number;
+  
+  // Trend data for charts
+  volumeTrend: VolumeData[];
+  weightTrend: VolumeData[];
+  repsTrend: VolumeData[];
+}
+
+export interface VolumeData {
+  date: Date;
+  value: number;
+}
+
+// === SOCIAL TYPES ===
+export interface WorkoutShare {
+  id: string;
+  userId: string;
+  workoutId: string;
+  caption?: string;
+  isPublic: boolean;
+  likes: string[]; // User IDs who liked
+  comments: Comment[];
+  createdAt: Date;
+}
+
+export interface Comment {
+  id: string;
+  userId: string;
+  userName: string;
+  text: string;
+  createdAt: Date;
+}
+
+export interface Follow {
+  id: string;
+  followerId: string;
+  followingId: string;
+  createdAt: Date;
+}
+
+// === NOTIFICATION TYPES ===
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: 'workout_reminder' | 'rest_complete' | 'streak_milestone' | 'new_pr' | 'social';
+  title: string;
+  body: string;
+  data?: any;
+  read: boolean;
+  createdAt: Date;
+}
+
+// === ANALYTICS TYPES ===
+export interface WorkoutAnalytics {
+  userId: string;
+  period: 'week' | 'month' | 'year' | 'all';
+  startDate: Date;
+  endDate: Date;
+  
+  totalWorkouts: number;
+  totalDuration: number; // minutes
+  totalVolume: number;
+  averageWorkoutDuration: number;
+  averageWorkoutVolume: number;
+  
+  muscleGroupDistribution: {
+    [key in MuscleGroup]?: number; // percentage
+  };
+  
+  consistencyScore: number; // 0-100
+  progressScore: number; // 0-100
+  
+  bestWorkout?: {
+    date: Date;
+    volume: number;
+    prs: number;
+  };
 }
