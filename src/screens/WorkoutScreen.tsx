@@ -4,6 +4,8 @@ import { Exercise, WorkoutExercise, Set } from '../types/index';
 import ExerciseSelector from '../components/ExerciseSelector';
 import TimeInput from '../components/TimeInput';
 import RestTimer from '../components/RestTimer';
+import FullScreenTimer from '../components/FullScreenTimer';
+import { ExerciseSettingsService } from '../services/exerciseSettingsService';
 
 export default function WorkoutScreen() {
   const [workoutExercises, setWorkoutExercises] = useState<WorkoutExercise[]>([]);
@@ -11,6 +13,8 @@ export default function WorkoutScreen() {
   const [workoutStartTime, setWorkoutStartTime] = useState<Date>(new Date());
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
   const [showRestTimer, setShowRestTimer] = useState(false);
+  const [restTimerEnabled, setRestTimerEnabled] = useState(false); // User preference for rest timer
+  const [showFullScreenTimer, setShowFullScreenTimer] = useState(false);
   const [restDuration, setRestDuration] = useState(90); // Default 1:30
   const [activeExerciseIndex, setActiveExerciseIndex] = useState<number>(-1);
 
@@ -49,8 +53,8 @@ export default function WorkoutScreen() {
     newExercises[exerciseIndex].sets[setIndex].completed = !wasCompleted;
     setWorkoutExercises(newExercises);
 
-    // Start rest timer if set was just completed
-    if (!wasCompleted) {
+    // Only start rest timer if it's enabled AND set was just completed
+    if (!wasCompleted && restTimerEnabled) {
       setActiveExerciseIndex(exerciseIndex);
       setRestDuration(newExercises[exerciseIndex].restTime || 90);
       setShowRestTimer(true);
@@ -87,8 +91,8 @@ export default function WorkoutScreen() {
     const newExercise: WorkoutExercise = {
       exercise: exerciseWithTracking,
       sets: [{
-        reps: 0,
-        weight: 0,
+        reps: exerciseWithTracking.trackingType === 'time' ? 0 : 10,
+        weight: exerciseWithTracking.trackingType === 'weight_reps' ? 135 : 0,
         duration: exerciseWithTracking.trackingType === 'time' ? 30 : 0,
         completed: false
       }],
@@ -233,6 +237,24 @@ export default function WorkoutScreen() {
     return reps > 0 ? reps.toString() : '';
   };
 
+  const handleRestTimerAdjust = (newDuration: number) => {
+    setRestDuration(newDuration);
+    // Optionally update the exercise's rest time as well
+    if (activeExerciseIndex >= 0) {
+      const newExercises = [...workoutExercises];
+      newExercises[activeExerciseIndex].restTime = newDuration;
+      setWorkoutExercises(newExercises);
+    }
+  };
+
+  const toggleRestTimer = () => {
+    setRestTimerEnabled(!restTimerEnabled);
+    // If disabling, also hide the timer
+    if (restTimerEnabled) {
+      setShowRestTimer(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header with Stats */}
@@ -242,9 +264,27 @@ export default function WorkoutScreen() {
             <Text style={styles.headerButton}>⌄</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Log Workout</Text>
-          <TouchableOpacity onPress={finishWorkout}>
-            <Text style={styles.finishButton}>Finish</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            {/* Rest Timer Toggle Button */}
+            <TouchableOpacity 
+              style={[styles.restTimerToggle, restTimerEnabled && styles.restTimerToggleActive]}
+              onPress={toggleRestTimer}
+            >
+              <Text style={[styles.restTimerIcon, restTimerEnabled && styles.restTimerIconActive]}>
+                ⏱
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.timerButton}
+              onPress={() => setShowFullScreenTimer(true)}
+            >
+              <Text style={styles.timerIcon}>🕐</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={finishWorkout}>
+              <Text style={styles.finishButton}>Finish</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         
         <View style={styles.statsContainer}>
@@ -392,12 +432,21 @@ export default function WorkoutScreen() {
         onSelectExercise={addExercise}
       />
 
-      <RestTimer
-        visible={showRestTimer}
-        duration={restDuration}
-        onClose={() => setShowRestTimer(false)}
-        onAdjust={(newDuration) => setRestDuration(newDuration)}
+      <FullScreenTimer
+        visible={showFullScreenTimer}
+        onClose={() => setShowFullScreenTimer(false)}
       />
+      
+      {/* Rest Timer - Now renders as overlay, not modal */}
+      {showRestTimer && (
+        <RestTimer
+          visible={showRestTimer}
+          duration={restDuration}
+          exerciseName={activeExerciseIndex >= 0 ? workoutExercises[activeExerciseIndex]?.exercise.name || 'Exercise' : 'Exercise'}
+          onClose={() => setShowRestTimer(false)}
+          onAdjust={handleRestTimerAdjust}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -426,6 +475,40 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 18,
     fontWeight: '600',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  restTimerToggle: {
+    backgroundColor: '#333333',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  restTimerToggleActive: {
+    backgroundColor: '#1E90FF',
+  },
+  restTimerIcon: {
+    fontSize: 20,
+    color: '#999999',
+  },
+  restTimerIconActive: {
+    color: '#FFFFFF',
+  },
+  timerButton: {
+    backgroundColor: '#333333',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  timerIcon: {
+    fontSize: 18,
   },
   finishButton: {
     backgroundColor: '#1E90FF',
